@@ -2,56 +2,103 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
-public class ARCursor : MonoBehaviour
+public class ARPlacement : MonoBehaviour
 {
-    public GameObject cursorChildObject;
-    public GameObject objectToPlace;
-    public ARRaycastManager raycastManager;
 
-    public bool useCursor = true;
+    public GameObject UIArrows;
+
+    // public GameObject arObjectToSpawn;
+    public GameObject placementIndicator;
+    private GameObject spawnedObject;
+    private Pose PlacementPose;
+    private ARRaycastManager aRRaycastManager;
+    private bool placementPoseIsValid = false;
+
+    public GameObject[] arModels;
+    int modelIndex = 0;
 
     void Start()
     {
-        cursorChildObject.SetActive(useCursor);
+        aRRaycastManager = FindObjectOfType<ARRaycastManager>();
+        UIArrows.SetActive(false);
+
     }
 
-    
+    // need to update placement indicator, placement pose and spawn 
     void Update()
     {
-        if (useCursor)
+        if (spawnedObject == null && placementPoseIsValid && Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
         {
-            UpdateCursor();
+            ARPlaceObject(modelIndex);
+            UIArrows.SetActive(true);
         }
 
-        if(Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
-        {
-            if (useCursor)
-            {
-                GameObject.Instantiate(objectToPlace, transform.position, transform.rotation);
-            }
-            else
-            {
-                List<ARRaycastHit> hits = new List<ARRaycastHit>();
-                raycastManager.Raycast(Input.GetTouch(0).position, hits, UnityEngine.XR.ARSubsystems.TrackableType.Planes);
-                if (hits.Count > 0)
-                {
-                    GameObject.Instantiate(objectToPlace, hits[0].pose.position, hits[0].pose.rotation);
-                }
-            }
-        }
+
+        UpdatePlacementPose();
+        UpdatePlacementIndicator();
+
+
     }
-
-    void UpdateCursor()
+    void UpdatePlacementIndicator()
     {
-        Vector2 screenPosition = Camera.main.ViewportToScreenPoint(new Vector2(0.5f, 0.5f));
-        List<ARRaycastHit> hits = new List<ARRaycastHit>();
-        raycastManager.Raycast(screenPosition, hits,UnityEngine.XR.ARSubsystems.TrackableType.Planes);
-
-        if(hits.Count > 0)
+        if (spawnedObject == null && placementPoseIsValid)
         {
-            transform.position = hits[0].pose.position;
-            transform.rotation = hits[0].pose.rotation;
+            placementIndicator.SetActive(true);
+            placementIndicator.transform.SetPositionAndRotation(PlacementPose.position, PlacementPose.rotation);
+        }
+        else
+        {
+            placementIndicator.SetActive(false);
         }
     }
+
+    void UpdatePlacementPose()
+    {
+        var screenCenter = Camera.current.ViewportToScreenPoint(new Vector3(0.5f, 0.5f));
+        var hits = new List<ARRaycastHit>();
+        aRRaycastManager.Raycast(screenCenter, hits, TrackableType.Planes);
+
+        placementPoseIsValid = hits.Count > 0;
+        if (placementPoseIsValid && spawnedObject == null)
+        {
+            PlacementPose = hits[0].pose;
+        }
+    }
+
+    void ARPlaceObject(int id)
+    {
+        for (int i = 0; i < arModels.Length; i++)
+        {
+            if (i == id)
+            {
+                GameObject clearUp = GameObject.FindGameObjectWithTag("ARMultiModel");
+                Destroy(clearUp);
+                spawnedObject = Instantiate(arModels[i], PlacementPose.position, PlacementPose.rotation);
+            }
+        }
+    }
+
+    public void ModelChangeRight()
+    {
+        if (modelIndex < arModels.Length - 1)
+            modelIndex++;
+        else
+            modelIndex = 0;
+
+        ARPlaceObject(modelIndex);
+    }
+    public void ModelChangeLeft()
+    {
+        if (modelIndex > 0)
+            modelIndex--;
+        else
+            modelIndex = arModels.Length - 1;
+
+        ARPlaceObject(modelIndex);
+    }
+
 }
+
+
